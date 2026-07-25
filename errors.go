@@ -7,33 +7,34 @@ import (
 )
 
 var (
-	ErrNilContext            = errors.New("worker: nil context")
-	ErrNilWorker             = errors.New("worker: nil implementation")
-	ErrNilMode               = errors.New("worker: nil mode")
-	ErrNilLogger             = errors.New("worker: nil logger")
-	ErrEmptyName             = errors.New("worker: name must not be empty")
-	ErrInvalidWorkerName     = errors.New("worker: name must contain only lowercase ASCII letters, digits, and underscores")
-	ErrInvalidTimeout        = errors.New("worker: timeout must not be negative")
-	ErrInvalidInterval       = errors.New("worker: interval must be positive")
-	ErrInvalidDelay          = errors.New("worker: delay must be positive")
-	ErrInvalidScheduledTime  = errors.New("worker: scheduled time must not be zero")
-	ErrInvalidCronExpression = errors.New("worker: invalid cron expression")
-	ErrInvalidRetryAttempts  = errors.New("worker: retry requires at least two attempts when enabled")
-	ErrInvalidRetryDelay     = errors.New("worker: retry delay is invalid")
+	errNilContext            = errors.New("worker: nil context")
+	errNilWorker             = errors.New("worker: nil implementation")
+	errNilMode               = errors.New("worker: nil mode")
+	errNilLogger             = errors.New("worker: nil logger")
+	errEmptyName             = errors.New("worker: name must not be empty")
+	errInvalidWorkerName     = errors.New("worker: name must contain only lowercase ASCII letters, digits, and underscores")
+	errInvalidTimeout        = errors.New("worker: timeout must not be negative")
+	errInvalidInterval       = errors.New("worker: interval must be positive")
+	errInvalidDelay          = errors.New("worker: delay must be positive")
+	errInvalidScheduledTime  = errors.New("worker: scheduled time must not be zero")
+	errInvalidCronExpression = errors.New("worker: invalid cron expression")
+	errInvalidRetryAttempts  = errors.New("worker: retry requires at least two attempts when enabled")
+	errInvalidRetryDelay     = errors.New("worker: retry delay is invalid")
 )
 
+// PanicError reports a panic recovered from a worker execution.
 type PanicError struct {
-	Value any
-	Stack []byte
+	value any
+	stack []byte
 }
 
 func newPanicError(value any) *PanicError {
 	return &PanicError{
-		Value: value,
-		Stack: debug.Stack(),
+		value: value,
+		stack: debug.Stack(),
 	}
 }
 
 func (e *PanicError) Error() string {
-	return fmt.Sprint("worker panicked: ", e.Value)
+	return fmt.Sprint("worker panicked: ", e.value)
 }

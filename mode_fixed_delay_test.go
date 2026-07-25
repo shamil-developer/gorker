@@ -117,8 +117,8 @@ func TestFixedDelayCanceledExecutionStopsMode(t *testing.T) {
 func TestFixedDelayRejectsInvalidDelay(t *testing.T) {
 	for _, delay := range []time.Duration{0, -time.Second} {
 		err := (FixedDelay{Delay: delay}).validate()
-		if !errors.Is(err, ErrInvalidDelay) {
-			t.Fatalf("Delay %v: error = %v, want ErrInvalidDelay", delay, err)
+		if !errors.Is(err, errInvalidDelay) {
+			t.Fatalf("Delay %v: error = %v, want errInvalidDelay", delay, err)
 		}
 	}
 	if err := (FixedDelay{Delay: time.Second}).validate(); err != nil {

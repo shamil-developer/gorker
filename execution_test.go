@@ -304,8 +304,8 @@ func TestExecutionDoesNotRetryPanic(t *testing.T) {
 	if calls != 1 {
 		t.Fatalf("calls = %d, want 1", calls)
 	}
-	if len(panicErr.Stack) == 0 {
-		t.Fatal("PanicError.Stack is empty")
+	if len(panicErr.stack) == 0 {
+		t.Fatal("PanicError.stack is empty")
 	}
 }
 

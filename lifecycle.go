@@ -95,8 +95,8 @@ func Start(
 				"worker", name,
 				"duration", duration,
 				"error", err,
-				"panic_value", panicErr.Value,
-				"stack", string(panicErr.Stack),
+				"panic_value", panicErr.value,
+				"stack", string(panicErr.stack),
 			)
 		} else {
 			execution.logger.Error(
@@ -116,7 +116,7 @@ func Start(
 // Context cancellation reported by workers is treated as a normal shutdown.
 func Wait(ctx context.Context, results ...Result) error {
 	if ctx == nil {
-		return ErrNilContext
+		return errNilContext
 	}
 
 	var workerErrors []error
@@ -148,25 +148,25 @@ func validateStart(
 	config Config,
 ) error {
 	if ctx == nil {
-		return ErrNilContext
+		return errNilContext
 	}
 	if name == "" {
-		return ErrEmptyName
+		return errEmptyName
 	}
 	if !isValidWorkerName(name) {
-		return ErrInvalidWorkerName
+		return errInvalidWorkerName
 	}
 	if isNilInterface(implementation) {
-		return ErrNilWorker
+		return errNilWorker
 	}
 	if isNilInterface(mode) {
-		return ErrNilMode
+		return errNilMode
 	}
 	if isNilInterface(config.Logger) {
-		return ErrNilLogger
+		return errNilLogger
 	}
 	if config.Timeout < 0 {
-		return ErrInvalidTimeout
+		return errInvalidTimeout
 	}
 	if err := config.Retry.validate(); err != nil {
 		return err

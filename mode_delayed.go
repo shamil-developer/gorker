@@ -12,7 +12,7 @@ type Delayed struct {
 
 func (d Delayed) validate() error {
 	if d.Delay <= 0 {
-		return ErrInvalidDelay
+		return errInvalidDelay
 	}
 	return nil
 }

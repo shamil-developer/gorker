@@ -64,7 +64,7 @@ func TestRetryValidation(t *testing.T) {
 			retry: Retry{
 				MaxAttempts: -1,
 			},
-			target: ErrInvalidRetryAttempts,
+			target: errInvalidRetryAttempts,
 		},
 		{
 			name: "retry settings require two attempts",
@@ -73,7 +73,7 @@ func TestRetryValidation(t *testing.T) {
 				InitialDelay: time.Second,
 				MaxDelay:     time.Second,
 			},
-			target: ErrInvalidRetryAttempts,
+			target: errInvalidRetryAttempts,
 		},
 		{
 			name: "delays without attempts",
@@ -81,7 +81,7 @@ func TestRetryValidation(t *testing.T) {
 				InitialDelay: time.Second,
 				MaxDelay:     time.Second,
 			},
-			target: ErrInvalidRetryAttempts,
+			target: errInvalidRetryAttempts,
 		},
 		{
 			name: "requires positive initial delay",
@@ -89,7 +89,7 @@ func TestRetryValidation(t *testing.T) {
 				MaxAttempts: 2,
 				MaxDelay:    time.Second,
 			},
-			target: ErrInvalidRetryDelay,
+			target: errInvalidRetryDelay,
 		},
 		{
 			name: "rejects negative initial delay",
@@ -98,7 +98,7 @@ func TestRetryValidation(t *testing.T) {
 				InitialDelay: -time.Second,
 				MaxDelay:     time.Second,
 			},
-			target: ErrInvalidRetryDelay,
+			target: errInvalidRetryDelay,
 		},
 		{
 			name: "requires positive maximum delay",
@@ -106,7 +106,7 @@ func TestRetryValidation(t *testing.T) {
 				MaxAttempts:  2,
 				InitialDelay: time.Second,
 			},
-			target: ErrInvalidRetryDelay,
+			target: errInvalidRetryDelay,
 		},
 		{
 			name: "maximum cannot be below initial",
@@ -115,7 +115,7 @@ func TestRetryValidation(t *testing.T) {
 				InitialDelay: 2 * time.Second,
 				MaxDelay:     time.Second,
 			},
-			target: ErrInvalidRetryDelay,
+			target: errInvalidRetryDelay,
 		},
 		{
 			name: "valid increasing delay",

@@ -39,22 +39,22 @@ func (r Retry) validate() error {
 		return nil
 	}
 	if r.MaxAttempts < 1 {
-		return ErrInvalidRetryAttempts
+		return errInvalidRetryAttempts
 	}
 	if r.MaxAttempts == 1 {
 		if r.InitialDelay != 0 || r.MaxDelay != 0 {
-			return ErrInvalidRetryAttempts
+			return errInvalidRetryAttempts
 		}
 		return nil
 	}
 	if r.InitialDelay <= 0 {
-		return fmt.Errorf("%w: initial delay must be positive", ErrInvalidRetryDelay)
+		return fmt.Errorf("%w: initial delay must be positive", errInvalidRetryDelay)
 	}
 	if r.MaxDelay <= 0 {
-		return fmt.Errorf("%w: maximum delay must be positive", ErrInvalidRetryDelay)
+		return fmt.Errorf("%w: maximum delay must be positive", errInvalidRetryDelay)
 	}
 	if r.MaxDelay < r.InitialDelay {
-		return fmt.Errorf("%w: maximum delay must not be less than initial delay", ErrInvalidRetryDelay)
+		return fmt.Errorf("%w: maximum delay must not be less than initial delay", errInvalidRetryDelay)
 	}
 	return nil
 }

@@ -65,8 +65,8 @@ func TestDelayedCancellationPreventsExecution(t *testing.T) {
 func TestDelayedRejectsInvalidDelay(t *testing.T) {
 	for _, delay := range []time.Duration{0, -time.Second} {
 		err := (Delayed{Delay: delay}).validate()
-		if !errors.Is(err, ErrInvalidDelay) {
-			t.Fatalf("Delay %v: error = %v, want ErrInvalidDelay", delay, err)
+		if !errors.Is(err, errInvalidDelay) {
+			t.Fatalf("Delay %v: error = %v, want errInvalidDelay", delay, err)
 		}
 	}
 	if err := (Delayed{Delay: time.Second}).validate(); err != nil {

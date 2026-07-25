@@ -59,8 +59,8 @@ func TestScheduledPastTimeExecutesImmediately(t *testing.T) {
 
 func TestScheduledRejectsZeroTime(t *testing.T) {
 	err := (Scheduled{}).validate()
-	if !errors.Is(err, ErrInvalidScheduledTime) {
-		t.Fatalf("Scheduled.validate() error = %v, want ErrInvalidScheduledTime", err)
+	if !errors.Is(err, errInvalidScheduledTime) {
+		t.Fatalf("Scheduled.validate() error = %v, want errInvalidScheduledTime", err)
 	}
 	if err := (Scheduled{At: time.Now()}).validate(); err != nil {
 		t.Fatalf("valid Scheduled.validate() error = %v", err)

@@ -13,7 +13,7 @@ type Scheduled struct {
 
 func (s Scheduled) validate() error {
 	if s.At.IsZero() {
-		return ErrInvalidScheduledTime
+		return errInvalidScheduledTime
 	}
 	return nil
 }

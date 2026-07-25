@@ -14,7 +14,7 @@ type Periodic struct {
 
 func (p Periodic) validate() error {
 	if p.Interval <= 0 {
-		return ErrInvalidInterval
+		return errInvalidInterval
 	}
 	return nil
 }

@@ -92,8 +92,8 @@ func executeWithPolicy(
 				"attempt", attempt,
 				"duration", attemptDuration,
 				"error", err,
-				"panic_value", panicErr.Value,
-				"stack", string(panicErr.Stack),
+				"panic_value", panicErr.value,
+				"stack", string(panicErr.stack),
 			)
 			return err
 		}

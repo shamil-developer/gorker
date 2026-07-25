@@ -177,8 +177,8 @@ func TestPeriodicCanceledExecutionStopsMode(t *testing.T) {
 }
 
 func TestPeriodicValidation(t *testing.T) {
-	if err := (Periodic{}).validate(); !errors.Is(err, ErrInvalidInterval) {
-		t.Fatalf("zero interval error = %v, want ErrInvalidInterval", err)
+	if err := (Periodic{}).validate(); !errors.Is(err, errInvalidInterval) {
+		t.Fatalf("zero interval error = %v, want errInvalidInterval", err)
 	}
 	if err := (Periodic{Interval: time.Second}).validate(); err != nil {
 		t.Fatalf("valid Periodic.validate() error = %v", err)

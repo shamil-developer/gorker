@@ -91,12 +91,12 @@ func parseCronSchedule(
 	now time.Time,
 ) (robfigcron.Schedule, time.Time, error) {
 	if strings.TrimSpace(expression) == "" {
-		return nil, time.Time{}, ErrInvalidCronExpression
+		return nil, time.Time{}, errInvalidCronExpression
 	}
 
 	schedule, err := robfigcron.ParseStandard(expression)
 	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("%w: %w", ErrInvalidCronExpression, err)
+		return nil, time.Time{}, fmt.Errorf("%w: %w", errInvalidCronExpression, err)
 	}
 
 	next, err := nextCronActivation(schedule, now)
@@ -114,7 +114,7 @@ func nextCronActivation(
 	if next.IsZero() {
 		return time.Time{}, fmt.Errorf(
 			"%w: schedule has no future activation",
-			ErrInvalidCronExpression,
+			errInvalidCronExpression,
 		)
 	}
 	return next, nil

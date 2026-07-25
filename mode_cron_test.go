@@ -180,8 +180,8 @@ func TestCronValidation(t *testing.T) {
 		"0 0 31 2 *",
 	} {
 		err := (Cron{Expression: expression}).validate()
-		if !errors.Is(err, ErrInvalidCronExpression) {
-			t.Fatalf("Expression %q: error = %v, want ErrInvalidCronExpression", expression, err)
+		if !errors.Is(err, errInvalidCronExpression) {
+			t.Fatalf("Expression %q: error = %v, want errInvalidCronExpression", expression, err)
 		}
 	}
 	if err := (Cron{Expression: "@every 1s"}).validate(); err != nil {

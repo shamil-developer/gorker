@@ -15,7 +15,7 @@ type FixedDelay struct {
 
 func (f FixedDelay) validate() error {
 	if f.Delay <= 0 {
-		return ErrInvalidDelay
+		return errInvalidDelay
 	}
 	return nil
 }

@@ -93,8 +93,8 @@ func TestStartRequiresLogger(t *testing.T) {
 				Config{Logger: test.logger},
 			)
 
-			if !errors.Is(err, ErrNilLogger) {
-				t.Fatalf("Start() error = %v, want ErrNilLogger", err)
+			if !errors.Is(err, errNilLogger) {
+				t.Fatalf("Start() error = %v, want errNilLogger", err)
 			}
 			if result != nil {
 				t.Fatal("Start() result must be nil after validation failure")
@@ -414,7 +414,7 @@ func TestStartValidation(t *testing.T) {
 			worker: validWorker,
 			mode:   validMode,
 			config: validConfig,
-			target: ErrNilContext,
+			target: errNilContext,
 		},
 		{
 			name:   "empty name",
@@ -422,7 +422,7 @@ func TestStartValidation(t *testing.T) {
 			worker: validWorker,
 			mode:   validMode,
 			config: validConfig,
-			target: ErrEmptyName,
+			target: errEmptyName,
 		},
 		{
 			name:   "name with whitespace",
@@ -430,7 +430,7 @@ func TestStartValidation(t *testing.T) {
 			worker: validWorker,
 			mode:   validMode,
 			config: validConfig,
-			target: ErrInvalidWorkerName,
+			target: errInvalidWorkerName,
 		},
 		{
 			name:   "name with uppercase",
@@ -438,7 +438,7 @@ func TestStartValidation(t *testing.T) {
 			worker: validWorker,
 			mode:   validMode,
 			config: validConfig,
-			target: ErrInvalidWorkerName,
+			target: errInvalidWorkerName,
 		},
 		{
 			name:   "name with hyphen",
@@ -446,7 +446,7 @@ func TestStartValidation(t *testing.T) {
 			worker: validWorker,
 			mode:   validMode,
 			config: validConfig,
-			target: ErrInvalidWorkerName,
+			target: errInvalidWorkerName,
 		},
 		{
 			name:   "name with non ASCII letters",
@@ -454,14 +454,14 @@ func TestStartValidation(t *testing.T) {
 			worker: validWorker,
 			mode:   validMode,
 			config: validConfig,
-			target: ErrInvalidWorkerName,
+			target: errInvalidWorkerName,
 		},
 		{
 			name:   "nil worker",
 			ctx:    context.Background(),
 			mode:   validMode,
 			config: validConfig,
-			target: ErrNilWorker,
+			target: errNilWorker,
 		},
 		{
 			name:   "typed nil worker",
@@ -469,14 +469,14 @@ func TestStartValidation(t *testing.T) {
 			worker: nilWorker,
 			mode:   validMode,
 			config: validConfig,
-			target: ErrNilWorker,
+			target: errNilWorker,
 		},
 		{
 			name:   "nil mode",
 			ctx:    context.Background(),
 			worker: validWorker,
 			config: validConfig,
-			target: ErrNilMode,
+			target: errNilMode,
 		},
 		{
 			name:   "typed nil mode",
@@ -484,7 +484,7 @@ func TestStartValidation(t *testing.T) {
 			worker: validWorker,
 			mode:   nilMode,
 			config: validConfig,
-			target: ErrNilMode,
+			target: errNilMode,
 		},
 		{
 			name:   "negative timeout",
@@ -495,7 +495,7 @@ func TestStartValidation(t *testing.T) {
 				Timeout: -time.Second,
 				Logger:  &recordingLogger{},
 			},
-			target: ErrInvalidTimeout,
+			target: errInvalidTimeout,
 		},
 		{
 			name:   "invalid retry",
@@ -508,7 +508,7 @@ func TestStartValidation(t *testing.T) {
 				},
 				Logger: &recordingLogger{},
 			},
-			target: ErrInvalidRetryAttempts,
+			target: errInvalidRetryAttempts,
 		},
 	}
 
@@ -625,8 +625,8 @@ func TestWaitStopsAtContextDeadline(t *testing.T) {
 
 func TestWaitRejectsNilContext(t *testing.T) {
 	//lint:ignore SA1012 nil context is intentional to test public validation
-	if err := Wait(nil); !errors.Is(err, ErrNilContext) {
-		t.Fatalf("Wait() error = %v, want ErrNilContext", err)
+	if err := Wait(nil); !errors.Is(err, errNilContext) {
+		t.Fatalf("Wait() error = %v, want errNilContext", err)
 	}
 }
 

@@ -8,10 +8,10 @@ import (
 func TestPanicError(t *testing.T) {
 	err := newPanicError("boom")
 
-	if err.Value != "boom" {
-		t.Fatalf("Value = %v, want boom", err.Value)
+	if err.value != "boom" {
+		t.Fatalf("Value = %v, want boom", err.value)
 	}
-	if len(err.Stack) == 0 {
+	if len(err.stack) == 0 {
 		t.Fatal("Stack is empty")
 	}
 	if !strings.Contains(err.Error(), "boom") {
