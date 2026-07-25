@@ -15,6 +15,8 @@ func TestPeriodicExecutesOnEveryTick(t *testing.T) {
 
 		err := (Periodic{Interval: time.Minute}).run(
 			ctx,
+			"periodic",
+			&recordingLogger{},
 			func(context.Context) error {
 				calls++
 				if calls == 3 {
@@ -40,7 +42,7 @@ func TestPeriodicImmediate(t *testing.T) {
 	err := (Periodic{
 		Interval:  time.Hour,
 		Immediate: true,
-	}).run(ctx, func(context.Context) error {
+	}).run(ctx, "periodic", &recordingLogger{}, func(context.Context) error {
 		calls++
 		cancel()
 		return nil
@@ -66,7 +68,7 @@ func TestPeriodicDoesNotOverlapExecutions(t *testing.T) {
 			done <- (Periodic{
 				Interval:  time.Second,
 				Immediate: true,
-			}).run(ctx, func(context.Context) error {
+			}).run(ctx, "periodic", &recordingLogger{}, func(context.Context) error {
 				calls++
 				close(started)
 				<-release
@@ -88,53 +90,90 @@ func TestPeriodicDoesNotOverlapExecutions(t *testing.T) {
 	})
 }
 
-func TestPeriodicErrorPolicy(t *testing.T) {
-	wantErr := errors.New("failure")
+func TestPeriodicLogsSkippedExecutions(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		logger := &recordingLogger{}
+		calls := 0
 
-	t.Run("continue", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(t.Context())
-			calls := 0
-
-			err := (Periodic{
-				Interval:  time.Second,
-				Immediate: true,
-			}).run(ctx, func(context.Context) error {
+		err := (Periodic{Interval: time.Second}).run(
+			ctx,
+			"periodic",
+			logger,
+			func(context.Context) error {
 				calls++
 				if calls == 1 {
-					return wantErr
+					time.Sleep(5 * time.Second)
+				} else {
+					cancel()
 				}
-				cancel()
 				return nil
-			})
+			},
+		)
 
-			if !errors.Is(err, context.Canceled) {
-				t.Fatalf("Periodic.run() error = %v, want Canceled", err)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Periodic.run() error = %v, want Canceled", err)
+		}
+
+		for _, entry := range logger.snapshot() {
+			if entry.level == "warn" &&
+				entry.message == "worker periodic executions skipped" {
+				return
 			}
-			if calls != 2 {
-				t.Fatalf("calls = %d, want 2", calls)
-			}
-		})
+		}
+		t.Fatal("missing warning for skipped periodic executions")
 	})
+}
 
-	t.Run("stop", func(t *testing.T) {
+func TestPeriodicContinuesAfterExecutionError(t *testing.T) {
+	wantErr := errors.New("failure")
+
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
 		calls := 0
+
 		err := (Periodic{
-			Interval:    time.Hour,
-			Immediate:   true,
-			StopOnError: true,
-		}).run(context.Background(), func(context.Context) error {
+			Interval:  time.Second,
+			Immediate: true,
+		}).run(ctx, "periodic", &recordingLogger{}, func(context.Context) error {
 			calls++
-			return wantErr
+			if calls == 1 {
+				return wantErr
+			}
+			cancel()
+			return nil
 		})
 
-		if !errors.Is(err, wantErr) {
-			t.Fatalf("Periodic.run() error = %v, want worker error", err)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Periodic.run() error = %v, want Canceled", err)
 		}
-		if calls != 1 {
-			t.Fatalf("calls = %d, want 1", calls)
+		if calls != 2 {
+			t.Fatalf("calls = %d, want 2", calls)
 		}
 	})
+}
+
+func TestPeriodicCanceledExecutionStopsMode(t *testing.T) {
+	calls := 0
+	err := (Periodic{
+		Interval:  time.Hour,
+		Immediate: true,
+	}).run(
+		context.Background(),
+		"periodic",
+		&recordingLogger{},
+		func(context.Context) error {
+			calls++
+			return context.Canceled
+		},
+	)
+
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Periodic.run() error = %v, want Canceled", err)
+	}
+	if calls != 1 {
+		t.Fatalf("calls = %d, want 1", calls)
+	}
 }
 
 func TestPeriodicValidation(t *testing.T) {

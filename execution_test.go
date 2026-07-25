@@ -17,7 +17,7 @@ func TestExecutionSucceedsOnFirstAttempt(t *testing.T) {
 			calls++
 			return nil
 		}),
-		testExecutionConfig(t, Config{Logger: &recordingLogger{}}),
+		testExecutionConfig(Config{Logger: &recordingLogger{}}),
 	)
 
 	if err != nil {
@@ -40,7 +40,7 @@ func TestExecutionAlreadyCanceledContextSkipsWorker(t *testing.T) {
 			calls++
 			return nil
 		}),
-		testExecutionConfig(t, Config{Logger: &recordingLogger{}}),
+		testExecutionConfig(Config{Logger: &recordingLogger{}}),
 	)
 
 	if !errors.Is(err, context.Canceled) {
@@ -66,7 +66,7 @@ func TestExecutionRetriesUntilSuccess(t *testing.T) {
 				}
 				return nil
 			}),
-			testExecutionConfig(t, Config{
+			testExecutionConfig(Config{
 				Retry: Retry{
 					MaxAttempts:  3,
 					InitialDelay: time.Second,
@@ -103,7 +103,7 @@ func TestExecutionReturnsLastErrorAfterAttemptsExhausted(t *testing.T) {
 			}
 			return lastErr
 		}),
-		testExecutionConfig(t, Config{
+		testExecutionConfig(Config{
 			Retry: Retry{
 				MaxAttempts:  2,
 				InitialDelay: time.Nanosecond,
@@ -124,6 +124,7 @@ func TestExecutionReturnsLastErrorAfterAttemptsExhausted(t *testing.T) {
 func TestExecutionTimeoutAppliesToEveryAttempt(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		attempts := 0
+		logger := &recordingLogger{}
 		err := executeWithPolicy(
 			t.Context(),
 			"timeout",
@@ -132,14 +133,14 @@ func TestExecutionTimeoutAppliesToEveryAttempt(t *testing.T) {
 				<-ctx.Done()
 				return ctx.Err()
 			}),
-			testExecutionConfig(t, Config{
+			testExecutionConfig(Config{
 				Timeout: time.Second,
 				Retry: Retry{
 					MaxAttempts:  2,
 					InitialDelay: time.Second,
 					MaxDelay:     time.Second,
 				},
-				Logger: &recordingLogger{},
+				Logger: logger,
 			}),
 		)
 
@@ -148,6 +149,14 @@ func TestExecutionTimeoutAppliesToEveryAttempt(t *testing.T) {
 		}
 		if attempts != 2 {
 			t.Fatalf("attempts = %d, want 2", attempts)
+		}
+
+		entries := logger.snapshot()
+		if entries[1].message != "worker attempt timed out; retry scheduled" {
+			t.Fatalf("retry log message = %q, want timeout retry", entries[1].message)
+		}
+		if entries[3].message != "worker attempt timed out" {
+			t.Fatalf("final log message = %q, want timeout failure", entries[3].message)
 		}
 	})
 }
@@ -161,7 +170,7 @@ func TestExecutionReturnsDeadlineWhenWorkerFinishesAfterTimeout(t *testing.T) {
 				time.Sleep(2 * time.Second)
 				return nil
 			}),
-			testExecutionConfig(t, Config{
+			testExecutionConfig(Config{
 				Timeout: time.Second,
 				Logger:  &recordingLogger{},
 			}),
@@ -173,18 +182,44 @@ func TestExecutionReturnsDeadlineWhenWorkerFinishesAfterTimeout(t *testing.T) {
 	})
 }
 
+func TestExecutionTimeoutOverridesLateWorkerError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		lateErr := errors.New("late failure")
+		err := executeWithPolicy(
+			t.Context(),
+			"late_failure",
+			workerFunc(func(context.Context) error {
+				time.Sleep(2 * time.Second)
+				return lateErr
+			}),
+			testExecutionConfig(Config{
+				Timeout: time.Second,
+				Logger:  &recordingLogger{},
+			}),
+		)
+
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("executeWithPolicy() error = %v, want DeadlineExceeded", err)
+		}
+		if errors.Is(err, lateErr) {
+			t.Fatalf("executeWithPolicy() error = %v, must hide late worker error", err)
+		}
+	})
+}
+
 func TestExecutionCancellationInterruptsRetryDelay(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		firstAttempt := make(chan struct{})
 		done := make(chan error, 1)
-		config := testExecutionConfig(t, Config{
+		logger := &recordingLogger{}
+		config := testExecutionConfig(Config{
 			Retry: Retry{
 				MaxAttempts:  2,
 				InitialDelay: time.Hour,
 				MaxDelay:     time.Hour,
 			},
-			Logger: &recordingLogger{},
+			Logger: logger,
 		})
 
 		go func() {
@@ -205,6 +240,14 @@ func TestExecutionCancellationInterruptsRetryDelay(t *testing.T) {
 		if err := <-done; !errors.Is(err, context.Canceled) {
 			t.Fatalf("executeWithPolicy() error = %v, want Canceled", err)
 		}
+
+		entries := logger.snapshot()
+		if entries[len(entries)-1].message != "worker retry canceled" {
+			t.Fatalf(
+				"last log message = %q, want worker retry canceled",
+				entries[len(entries)-1].message,
+			)
+		}
 	})
 }
 
@@ -217,7 +260,7 @@ func TestExecutionDoesNotRetryCanceledError(t *testing.T) {
 			calls++
 			return context.Canceled
 		}),
-		testExecutionConfig(t, Config{
+		testExecutionConfig(Config{
 			Retry: Retry{
 				MaxAttempts:  3,
 				InitialDelay: time.Second,
@@ -244,7 +287,7 @@ func TestExecutionDoesNotRetryPanic(t *testing.T) {
 			calls++
 			panic("boom")
 		}),
-		testExecutionConfig(t, Config{
+		testExecutionConfig(Config{
 			Retry: Retry{
 				MaxAttempts:  3,
 				InitialDelay: time.Second,
@@ -279,7 +322,7 @@ func TestExecutionLogsLifecycle(t *testing.T) {
 			}
 			return nil
 		}),
-		testExecutionConfig(t, Config{
+		testExecutionConfig(Config{
 			Retry: Retry{
 				MaxAttempts:  2,
 				InitialDelay: time.Nanosecond,
@@ -297,13 +340,12 @@ func TestExecutionLogsLifecycle(t *testing.T) {
 	wantEntries := []struct {
 		level   string
 		message string
-		event   string
 		attempt int
 	}{
-		{"debug", "worker attempt started", eventAttemptStarted, 1},
-		{"warn", "worker attempt failed; retry scheduled", eventWorkerRetryScheduled, 1},
-		{"debug", "worker attempt started", eventAttemptStarted, 2},
-		{"info", "worker attempt completed", eventAttemptCompleted, 2},
+		{"debug", "worker attempt started", 1},
+		{"warn", "worker attempt failed; retry scheduled", 1},
+		{"debug", "worker attempt started", 2},
+		{"info", "worker attempt completed", 2},
 	}
 	if len(entries) != len(wantEntries) {
 		t.Fatalf("log entries = %d, want %d", len(entries), len(wantEntries))
@@ -315,9 +357,6 @@ func TestExecutionLogsLifecycle(t *testing.T) {
 		}
 		if entry.message != want.message {
 			t.Errorf("entry %d message = %q, want %q", index, entry.message, want.message)
-		}
-		if event, _ := entry.value("event"); event != want.event {
-			t.Errorf("entry %d event = %v, want %q", index, event, want.event)
 		}
 		if run, _ := entry.value("run"); run != uint64(1) {
 			t.Errorf("entry %d run = %v, want 1", index, run)
@@ -341,7 +380,7 @@ func TestExecutionLogsLifecycle(t *testing.T) {
 
 func TestExecutionIncrementsRunNumber(t *testing.T) {
 	logger := &recordingLogger{}
-	config := testExecutionConfig(t, Config{Logger: logger})
+	config := testExecutionConfig(Config{Logger: logger})
 	implementation := workerFunc(func(context.Context) error { return nil })
 
 	for range 2 {
@@ -366,12 +405,10 @@ func TestExecutionIncrementsRunNumber(t *testing.T) {
 	}
 }
 
-func testExecutionConfig(t *testing.T, config Config) *executionConfig {
-	t.Helper()
-
-	prepared, err := prepareExecutionConfig(config)
-	if err != nil {
-		t.Fatalf("prepareExecutionConfig() error = %v", err)
+func testExecutionConfig(config Config) *executionConfig {
+	return &executionConfig{
+		timeout: config.Timeout,
+		retry:   config.Retry,
+		logger:  config.Logger,
 	}
-	return &prepared
 }

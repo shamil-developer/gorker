@@ -19,11 +19,25 @@ func (d Delayed) validate() error {
 
 func (d Delayed) run(
 	ctx context.Context,
+	name string,
+	logger Logger,
 	execute func(context.Context) error,
 ) error {
+	logger.Debug(
+		"worker waiting for delayed execution",
+		"worker", name,
+		"mode", "delayed",
+		"wait_for", d.Delay,
+		"next_at", time.Now().Add(d.Delay),
+	)
 	if err := waitDuration(ctx, d.Delay); err != nil {
 		return err
 	}
 
+	logger.Debug(
+		"worker delayed execution triggered",
+		"worker", name,
+		"mode", "delayed",
+	)
 	return execute(ctx)
 }

@@ -19,6 +19,8 @@ func (modeFunc) validate() error {
 
 func (f modeFunc) run(
 	ctx context.Context,
+	_ string,
+	_ Logger,
 	execute func(context.Context) error,
 ) error {
 	return f(ctx, execute)

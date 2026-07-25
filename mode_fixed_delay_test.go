@@ -16,7 +16,7 @@ func TestFixedDelayStartsDelayAfterCompletion(t *testing.T) {
 		err := (FixedDelay{
 			Delay:     2 * time.Second,
 			Immediate: true,
-		}).run(ctx, func(context.Context) error {
+		}).run(ctx, "fixed_delay", &recordingLogger{}, func(context.Context) error {
 			starts = append(starts, time.Now())
 			time.Sleep(5 * time.Second)
 			if len(starts) == 2 {
@@ -45,6 +45,8 @@ func TestFixedDelayWaitsBeforeFirstRunByDefault(t *testing.T) {
 
 		err := (FixedDelay{Delay: time.Minute}).run(
 			ctx,
+			"fixed_delay",
+			&recordingLogger{},
 			func(context.Context) error {
 				calledAt = time.Now()
 				cancel()
@@ -61,44 +63,55 @@ func TestFixedDelayWaitsBeforeFirstRunByDefault(t *testing.T) {
 	})
 }
 
-func TestFixedDelayErrorPolicy(t *testing.T) {
+func TestFixedDelayContinuesAfterExecutionError(t *testing.T) {
 	wantErr := errors.New("failure")
 
-	t.Run("continue", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(t.Context())
-			calls := 0
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		calls := 0
 
-			err := (FixedDelay{
-				Delay:     time.Second,
-				Immediate: true,
-			}).run(ctx, func(context.Context) error {
-				calls++
-				if calls == 1 {
-					return wantErr
-				}
-				cancel()
-				return nil
-			})
-
-			if !errors.Is(err, context.Canceled) {
-				t.Fatalf("FixedDelay.run() error = %v, want Canceled", err)
-			}
-		})
-	})
-
-	t.Run("stop", func(t *testing.T) {
 		err := (FixedDelay{
-			Delay:       time.Second,
-			Immediate:   true,
-			StopOnError: true,
-		}).run(context.Background(), func(context.Context) error {
-			return wantErr
+			Delay:     time.Second,
+			Immediate: true,
+		}).run(ctx, "fixed_delay", &recordingLogger{}, func(context.Context) error {
+			calls++
+			if calls == 1 {
+				return wantErr
+			}
+			cancel()
+			return nil
 		})
-		if !errors.Is(err, wantErr) {
-			t.Fatalf("FixedDelay.run() error = %v, want worker error", err)
+
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("FixedDelay.run() error = %v, want Canceled", err)
+		}
+		if calls != 2 {
+			t.Fatalf("calls = %d, want 2", calls)
 		}
 	})
+}
+
+func TestFixedDelayCanceledExecutionStopsMode(t *testing.T) {
+	calls := 0
+	err := (FixedDelay{
+		Delay:     time.Hour,
+		Immediate: true,
+	}).run(
+		context.Background(),
+		"fixed_delay",
+		&recordingLogger{},
+		func(context.Context) error {
+			calls++
+			return context.Canceled
+		},
+	)
+
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("FixedDelay.run() error = %v, want Canceled", err)
+	}
+	if calls != 1 {
+		t.Fatalf("calls = %d, want 1", calls)
+	}
 }
 
 func TestFixedDelayRejectsInvalidDelay(t *testing.T) {

@@ -10,7 +10,7 @@ func TestOnceExecutesExactlyOnce(t *testing.T) {
 	ctx := context.WithValue(context.Background(), contextKey{}, "value")
 	calls := 0
 
-	err := (Once{}).run(ctx, func(got context.Context) error {
+	err := (Once{}).run(ctx, "once", &recordingLogger{}, func(got context.Context) error {
 		calls++
 		if got != ctx {
 			t.Fatal("Once passed a different context")
@@ -28,9 +28,14 @@ func TestOnceExecutesExactlyOnce(t *testing.T) {
 
 func TestOncePropagatesError(t *testing.T) {
 	wantErr := errors.New("failure")
-	err := (Once{}).run(context.Background(), func(context.Context) error {
-		return wantErr
-	})
+	err := (Once{}).run(
+		context.Background(),
+		"once",
+		&recordingLogger{},
+		func(context.Context) error {
+			return wantErr
+		},
+	)
 
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("Once.run() error = %v, want worker error", err)

@@ -3,7 +3,6 @@ package gorker
 import (
 	"context"
 	"errors"
-	"reflect"
 	"time"
 )
 
@@ -23,75 +22,89 @@ func Start(
 	config Config,
 ) Result {
 	result := make(chan error, 1)
-	preparedConfig, err := prepareExecutionConfig(config)
-	if err != nil {
-		if !errors.Is(err, ErrNilLogger) {
-			lifecycleReporter{logger: config.Logger}.startRejected(name, err)
-		}
+	if isNil(config.Logger) {
+		result <- ErrNilLogger
+		close(result)
+		return result
+	}
+
+	if err := validateStart(ctx, name, implementation, mode, config); err != nil {
+		config.Logger.Error(
+			"worker start rejected",
+			"worker", name,
+			"error", err,
+		)
 		result <- err
 		close(result)
 		return result
 	}
-	reporter := preparedConfig.reporter
 
-	if err := validateStart(ctx, name, implementation, mode); err != nil {
-		reporter.startRejected(name, err)
-		result <- err
-		close(result)
-		return result
+	preparedConfig := executionConfig{
+		timeout: config.Timeout,
+		retry:   config.Retry,
+		logger:  config.Logger,
 	}
 
 	go func() {
 		defer close(result)
 		startedAt := time.Now()
-		reporter.workerStarted(
-			name,
-			modeName(mode),
-			preparedConfig.timeout,
-			preparedConfig.retry.attempts(),
+		preparedConfig.logger.Info(
+			"worker started",
+			"worker", name,
+			"timeout", preparedConfig.timeout,
+			"max_attempts", preparedConfig.retry.attempts(),
 		)
 
 		execute := func(executionContext context.Context) error {
-			err := executeWithPolicy(
+			return executeWithPolicy(
 				executionContext,
 				name,
 				implementation,
 				&preparedConfig,
 			)
-			if err != nil {
-				return &executionFailure{err: err}
-			}
-			return nil
 		}
 
-		err := runMode(ctx, mode, execute)
+		err := mode.run(ctx, name, preparedConfig.logger, execute)
 		if err == nil {
-			reporter.workerCompleted(name, time.Since(startedAt))
+			preparedConfig.logger.Info(
+				"worker completed",
+				"worker", name,
+				"duration", time.Since(startedAt),
+			)
 			return
-		}
-
-		finalErr := err
-		var failure *executionFailure
-		executionFailed := errors.As(err, &failure)
-		if executionFailed {
-			finalErr = failure.err
 		}
 
 		duration := time.Since(startedAt)
 		switch {
-		case isContextTermination(ctx, finalErr):
-			reporter.workerStopped(name, duration, finalErr)
-		case executionFailed:
-			reporter.workerFailed(name, duration, finalErr)
+		case isContextTermination(ctx, err):
+			preparedConfig.logger.Info(
+				"worker stopped",
+				"worker", name,
+				"duration", duration,
+				"reason", contextTerminationReason(err),
+				"error", err,
+			)
 		default:
 			var panicErr *PanicError
-			if errors.As(finalErr, &panicErr) {
-				reporter.modePanicked(name, duration, panicErr)
+			if errors.As(err, &panicErr) {
+				preparedConfig.logger.Error(
+					"worker panicked",
+					"worker", name,
+					"duration", duration,
+					"error", err,
+					"panic_value", panicErr.Value,
+					"stack", string(panicErr.Stack),
+				)
 			} else {
-				reporter.workerFailed(name, duration, finalErr)
+				preparedConfig.logger.Error(
+					"worker failed",
+					"worker", name,
+					"duration", duration,
+					"error", err,
+				)
 			}
 		}
-		result <- finalErr
+		result <- err
 	}()
 
 	return result
@@ -102,6 +115,7 @@ func validateStart(
 	name string,
 	implementation Worker,
 	mode Mode,
+	config Config,
 ) error {
 	if ctx == nil {
 		return ErrNilContext
@@ -118,25 +132,13 @@ func validateStart(
 	if isNil(mode) {
 		return ErrNilMode
 	}
-	return validateMode(mode)
-}
-
-func validateMode(mode Mode) (err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = newPanicError(recovered)
-		}
-	}()
-
-	return mode.validate()
-}
-
-func modeName(mode Mode) string {
-	modeType := reflect.TypeOf(mode)
-	for modeType.Kind() == reflect.Pointer {
-		modeType = modeType.Elem()
+	if config.Timeout < 0 {
+		return ErrInvalidTimeout
 	}
-	return modeType.String()
+	if err := config.Retry.validate(); err != nil {
+		return err
+	}
+	return mode.validate()
 }
 
 func isContextTermination(ctx context.Context, err error) bool {
@@ -159,24 +161,9 @@ func isValidWorkerName(name string) bool {
 	return true
 }
 
-func runMode(
-	ctx context.Context,
-	mode Mode,
-	execute func(context.Context) error,
-) (err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = newPanicError(recovered)
-		}
-	}()
-
-	return mode.run(ctx, execute)
-}
-
-type executionFailure struct {
-	err error
-}
-
-func (e *executionFailure) Error() string {
-	return e.err.Error()
+func contextTerminationReason(err error) string {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "deadline_exceeded"
+	}
+	return "context_canceled"
 }

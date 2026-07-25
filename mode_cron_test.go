@@ -16,6 +16,8 @@ func TestCronRunsOnSchedule(t *testing.T) {
 
 		err := (Cron{Expression: "@every 1s"}).run(
 			ctx,
+			"cron",
+			&recordingLogger{},
 			func(context.Context) error {
 				calls = append(calls, time.Now())
 				if len(calls) == 2 {
@@ -45,11 +47,16 @@ func TestCronExpressionTimezone(t *testing.T) {
 
 		err := (Cron{
 			Expression: "CRON_TZ=Etc/GMT-2 0 1 * * *",
-		}).run(ctx, func(context.Context) error {
-			calledAt = time.Now()
-			cancel()
-			return nil
-		})
+		}).run(
+			ctx,
+			"cron",
+			&recordingLogger{},
+			func(context.Context) error {
+				calledAt = time.Now()
+				cancel()
+				return nil
+			},
+		)
 
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("Cron.run() error = %v, want Canceled", err)
@@ -67,11 +74,14 @@ func TestCronSkipsMissedExecutions(t *testing.T) {
 		releaseFirst := make(chan struct{})
 		secondStarted := make(chan struct{})
 		done := make(chan error, 1)
+		logger := &recordingLogger{}
 		var starts []time.Time
 
 		go func() {
 			done <- (Cron{Expression: "@every 1s"}).run(
 				ctx,
+				"cron",
+				logger,
 				func(context.Context) error {
 					starts = append(starts, time.Now())
 					if len(starts) == 1 {
@@ -100,47 +110,66 @@ func TestCronSkipsMissedExecutions(t *testing.T) {
 		if err := <-done; !errors.Is(err, context.Canceled) {
 			t.Fatalf("Cron.run() error = %v, want Canceled", err)
 		}
+
+		for _, entry := range logger.snapshot() {
+			if entry.level == "warn" &&
+				entry.message == "worker cron executions skipped" {
+				return
+			}
+		}
+		t.Fatal("missing warning for skipped cron executions")
 	})
 }
 
-func TestCronErrorPolicy(t *testing.T) {
+func TestCronContinuesAfterExecutionError(t *testing.T) {
 	wantErr := errors.New("failure")
 
-	t.Run("continue", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(t.Context())
-			calls := 0
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		calls := 0
 
-			err := (Cron{Expression: "@every 1s"}).run(
-				ctx,
-				func(context.Context) error {
-					calls++
-					if calls == 1 {
-						return wantErr
-					}
-					cancel()
-					return nil
-				},
-			)
+		err := (Cron{Expression: "@every 1s"}).run(
+			ctx,
+			"cron",
+			&recordingLogger{},
+			func(context.Context) error {
+				calls++
+				if calls == 1 {
+					return wantErr
+				}
+				cancel()
+				return nil
+			},
+		)
 
-			if !errors.Is(err, context.Canceled) {
-				t.Fatalf("Cron.run() error = %v, want Canceled", err)
-			}
-		})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Cron.run() error = %v, want Canceled", err)
+		}
+		if calls != 2 {
+			t.Fatalf("calls = %d, want 2", calls)
+		}
 	})
+}
 
-	t.Run("stop", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			err := (Cron{
-				Expression:  "@every 1s",
-				StopOnError: true,
-			}).run(t.Context(), func(context.Context) error {
-				return wantErr
-			})
-			if !errors.Is(err, wantErr) {
-				t.Fatalf("Cron.run() error = %v, want worker error", err)
-			}
-		})
+func TestCronCanceledExecutionStopsMode(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		calls := 0
+		err := (Cron{Expression: "@every 1s"}).run(
+			t.Context(),
+			"cron",
+			&recordingLogger{},
+			func(context.Context) error {
+				calls++
+				return context.Canceled
+			},
+		)
+
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Cron.run() error = %v, want Canceled", err)
+		}
+		if calls != 1 {
+			t.Fatalf("calls = %d, want 1", calls)
+		}
 	})
 }
 

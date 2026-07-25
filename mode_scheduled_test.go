@@ -16,6 +16,8 @@ func TestScheduledExecutesAtTime(t *testing.T) {
 
 		err := (Scheduled{At: at}).run(
 			t.Context(),
+			"scheduled",
+			&recordingLogger{},
 			func(context.Context) error {
 				calledAt = time.Now()
 				return nil
@@ -38,6 +40,8 @@ func TestScheduledPastTimeExecutesImmediately(t *testing.T) {
 
 		err := (Scheduled{At: now.Add(-time.Hour)}).run(
 			t.Context(),
+			"scheduled",
+			&recordingLogger{},
 			func(context.Context) error {
 				calledAt = time.Now()
 				return nil
@@ -69,6 +73,8 @@ func TestScheduledHonorsCancellation(t *testing.T) {
 
 	err := (Scheduled{At: time.Now().Add(time.Hour)}).run(
 		ctx,
+		"scheduled",
+		&recordingLogger{},
 		func(context.Context) error {
 			t.Fatal("worker must not execute")
 			return nil

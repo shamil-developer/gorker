@@ -17,6 +17,8 @@ type Mode interface {
 	validate() error
 	run(
 		ctx context.Context,
+		name string,
+		logger Logger,
 		execute func(context.Context) error,
 	) error
 }
@@ -28,7 +30,7 @@ type Config struct {
 	// Retry configures repeated attempts. Its zero value means one attempt.
 	Retry Retry
 
-	// Logger receives structured worker lifecycle events.
+	// Logger receives structured worker logs.
 	// It is required.
 	Logger Logger
 }

@@ -2,6 +2,7 @@ package gorker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -15,8 +16,7 @@ import (
 // running are skipped; after completion, only the next future time is used.
 // Expressions use time.Local unless they include a TZ or CRON_TZ prefix.
 type Cron struct {
-	Expression  string
-	StopOnError bool
+	Expression string
 }
 
 func (c Cron) validate() error {
@@ -26,6 +26,8 @@ func (c Cron) validate() error {
 
 func (c Cron) run(
 	ctx context.Context,
+	name string,
+	logger Logger,
 	execute func(context.Context) error,
 ) error {
 	schedule, next, err := parseCronSchedule(c.Expression, time.Now())
@@ -34,16 +36,52 @@ func (c Cron) run(
 	}
 
 	for {
+		logger.Debug(
+			"worker waiting for cron execution",
+			"worker", name,
+			"mode", "cron",
+			"expression", c.Expression,
+			"next_at", next,
+			"wait_for", time.Until(next),
+		)
 		if err := waitDuration(ctx, time.Until(next)); err != nil {
 			return err
 		}
-		if err := execute(ctx); err != nil && c.StopOnError {
-			return err
+		logger.Debug(
+			"worker cron execution triggered",
+			"worker", name,
+			"mode", "cron",
+			"expression", c.Expression,
+			"scheduled_at", next,
+		)
+		if err := execute(ctx); err != nil {
+			if ctx.Err() != nil || errors.Is(err, context.Canceled) {
+				return err
+			}
+			logger.Warn(
+				"worker cron execution failed; continuing",
+				"worker", name,
+				"mode", "cron",
+				"expression", c.Expression,
+				"error", err,
+			)
 		}
 
-		next, err = nextCronActivation(schedule, time.Now())
+		finishedAt := time.Now()
+		firstSkippedAt := schedule.Next(next)
+		next, err = nextCronActivation(schedule, finishedAt)
 		if err != nil {
 			return err
+		}
+		if !firstSkippedAt.IsZero() && !firstSkippedAt.After(finishedAt) {
+			logger.Warn(
+				"worker cron executions skipped",
+				"worker", name,
+				"mode", "cron",
+				"expression", c.Expression,
+				"first_skipped_at", firstSkippedAt,
+				"next_at", next,
+			)
 		}
 	}
 }

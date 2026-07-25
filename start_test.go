@@ -58,8 +58,8 @@ func TestStartReturnsWorkerErrorOnce(t *testing.T) {
 
 	entries := logger.snapshot()
 	lastEntry := entries[len(entries)-1]
-	if event, _ := lastEntry.value("event"); event != eventWorkerFailed {
-		t.Fatalf("last event = %v, want %q", event, eventWorkerFailed)
+	if lastEntry.message != "worker failed" {
+		t.Fatalf("last message = %q, want worker failed", lastEntry.message)
 	}
 }
 
@@ -129,49 +129,8 @@ func TestStartValidatesModeBeforeStarting(t *testing.T) {
 	if len(entries) != 1 {
 		t.Fatalf("log entries = %#v, want one rejection entry", entries)
 	}
-	if event, _ := entries[0].value("event"); event != eventWorkerStartRejected {
-		t.Fatalf("event = %v, want %q", event, eventWorkerStartRejected)
-	}
-}
-
-func TestStartRecoversModeValidationPanic(t *testing.T) {
-	logger := &recordingLogger{}
-	result := Start(
-		context.Background(),
-		"validation_panic",
-		workerFunc(func(context.Context) error {
-			t.Fatal("worker executed after mode validation panic")
-			return nil
-		}),
-		validationMode{
-			validateFn: func() error {
-				panic("validation boom")
-			},
-			runFn: func(context.Context, func(context.Context) error) error {
-				t.Fatal("Mode.run executed after validation panic")
-				return nil
-			},
-		},
-		Config{Logger: logger},
-	)
-
-	var panicErr *PanicError
-	if err := <-result; !errors.As(err, &panicErr) {
-		t.Fatalf("Start() error = %T %v, want *PanicError", err, err)
-	}
-	if len(panicErr.Stack) == 0 {
-		t.Fatal("PanicError.Stack is empty")
-	}
-
-	entries := logger.snapshot()
-	if len(entries) != 1 {
-		t.Fatalf("log entries = %#v, want one panic entry", entries)
-	}
-	if event, _ := entries[0].value("event"); event != eventModeValidationPanic {
-		t.Fatalf("event = %v, want %q", event, eventModeValidationPanic)
-	}
-	if _, exists := entries[0].value("stack"); !exists {
-		t.Fatal("validation panic log has no stack")
+	if entries[0].message != "worker start rejected" {
+		t.Fatalf("message = %q, want worker start rejected", entries[0].message)
 	}
 }
 
@@ -193,18 +152,19 @@ func TestStartLogsStructuredWorkerLifecycle(t *testing.T) {
 	}
 
 	entries := logger.snapshot()
-	if len(entries) != 4 {
-		t.Fatalf("log entries = %#v, want four lifecycle entries", entries)
+	if len(entries) != 5 {
+		t.Fatalf("log entries = %#v, want five lifecycle entries", entries)
 	}
 
 	want := []struct {
-		level string
-		event string
+		level   string
+		message string
 	}{
-		{"info", eventWorkerStarted},
-		{"debug", eventAttemptStarted},
-		{"info", eventAttemptCompleted},
-		{"info", eventWorkerCompleted},
+		{"info", "worker started"},
+		{"debug", "worker once execution triggered"},
+		{"debug", "worker attempt started"},
+		{"info", "worker attempt completed"},
+		{"info", "worker completed"},
 	}
 	for index, expected := range want {
 		if entries[index].level != expected.level {
@@ -215,21 +175,26 @@ func TestStartLogsStructuredWorkerLifecycle(t *testing.T) {
 				expected.level,
 			)
 		}
-		if event, _ := entries[index].value("event"); event != expected.event {
-			t.Errorf("entry %d event = %v, want %q", index, event, expected.event)
+		if entries[index].message != expected.message {
+			t.Errorf(
+				"entry %d message = %q, want %q",
+				index,
+				entries[index].message,
+				expected.message,
+			)
+		}
+		if worker, _ := entries[index].value("worker"); worker != "lifecycle" {
+			t.Errorf("entry %d worker = %v, want lifecycle", index, worker)
 		}
 	}
 
-	if mode, _ := entries[0].value("mode"); mode != "gorker.Once" {
-		t.Errorf("worker mode = %v, want gorker.Once", mode)
-	}
 	if timeout, _ := entries[0].value("timeout"); timeout != time.Second {
 		t.Errorf("worker timeout = %v, want 1s", timeout)
 	}
 	if maxAttempts, _ := entries[0].value("max_attempts"); maxAttempts != 1 {
 		t.Errorf("worker max_attempts = %v, want 1", maxAttempts)
 	}
-	if _, exists := entries[3].value("duration"); !exists {
+	if _, exists := entries[4].value("duration"); !exists {
 		t.Fatal("worker completion entry has no duration")
 	}
 }
@@ -258,8 +223,8 @@ func TestStartLogsModeFailure(t *testing.T) {
 	if entries[1].level != "error" {
 		t.Fatalf("failure level = %q, want error", entries[1].level)
 	}
-	if event, _ := entries[1].value("event"); event != eventWorkerFailed {
-		t.Fatalf("failure event = %v, want %q", event, eventWorkerFailed)
+	if entries[1].message != "worker failed" {
+		t.Fatalf("failure message = %q, want worker failed", entries[1].message)
 	}
 	loggedValue, exists := entries[1].value("error")
 	loggedErr, isError := loggedValue.(error)
@@ -296,22 +261,24 @@ func TestStartLogsParentDeadlineAsStopReason(t *testing.T) {
 
 	entries := logger.snapshot()
 	lastEntry := entries[len(entries)-1]
-	if event, _ := lastEntry.value("event"); event != eventWorkerStopped {
-		t.Fatalf("last event = %v, want %q", event, eventWorkerStopped)
+	if lastEntry.message != "worker stopped" {
+		t.Fatalf("last message = %q, want worker stopped", lastEntry.message)
 	}
 	if reason, _ := lastEntry.value("reason"); reason != "deadline_exceeded" {
 		t.Fatalf("stop reason = %v, want deadline_exceeded", reason)
 	}
 }
 
-func TestStartRecoversModePanic(t *testing.T) {
+func TestStartOnceWorkerPanicReturnsError(t *testing.T) {
+	calls := 0
 	result := Start(
 		context.Background(),
-		"panic_mode",
-		workerFunc(func(context.Context) error { return nil }),
-		modeFunc(func(context.Context, func(context.Context) error) error {
-			panic("mode boom")
+		"once_panic",
+		workerFunc(func(context.Context) error {
+			calls++
+			panic("boom")
 		}),
+		Once{},
 		Config{Logger: &recordingLogger{}},
 	)
 
@@ -319,6 +286,59 @@ func TestStartRecoversModePanic(t *testing.T) {
 	if err := <-result; !errors.As(err, &panicErr) {
 		t.Fatalf("Start() error = %T %v, want *PanicError", err, err)
 	}
+	if calls != 1 {
+		t.Fatalf("worker calls = %d, want 1", calls)
+	}
+}
+
+func TestStartRecurringWorkerContinuesAfterPanic(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		logger := &recordingLogger{}
+		calls := 0
+
+		result := Start(
+			ctx,
+			"panic_recovery",
+			workerFunc(func(context.Context) error {
+				calls++
+				if calls == 1 {
+					panic("temporary panic")
+				}
+				cancel()
+				return nil
+			}),
+			Periodic{
+				Interval:  time.Second,
+				Immediate: true,
+			},
+			Config{Logger: logger},
+		)
+
+		if err := <-result; !errors.Is(err, context.Canceled) {
+			t.Fatalf("Start() error = %v, want Canceled", err)
+		}
+		if calls != 2 {
+			t.Fatalf("worker calls = %d, want 2", calls)
+		}
+
+		var panicLogged, continuationLogged bool
+		for _, entry := range logger.snapshot() {
+			switch entry.message {
+			case "worker attempt panicked":
+				panicLogged = true
+			case "worker periodic execution failed; continuing":
+				continuationLogged = true
+			}
+		}
+		if !panicLogged || !continuationLogged {
+			t.Fatalf(
+				"panic log = %t, continuation log = %t; want both",
+				panicLogged,
+				continuationLogged,
+			)
+		}
+	})
 }
 
 func TestStartTreatsModeCancellationAsNormalLifecycle(t *testing.T) {
@@ -503,7 +523,12 @@ func (*pointerMode) validate() error {
 	return nil
 }
 
-func (*pointerMode) run(context.Context, func(context.Context) error) error {
+func (*pointerMode) run(
+	context.Context,
+	string,
+	Logger,
+	func(context.Context) error,
+) error {
 	return nil
 }
 
@@ -518,6 +543,8 @@ func (m validationMode) validate() error {
 
 func (m validationMode) run(
 	ctx context.Context,
+	_ string,
+	_ Logger,
 	execute func(context.Context) error,
 ) error {
 	return m.runFn(ctx, execute)

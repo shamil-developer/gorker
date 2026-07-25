@@ -15,6 +15,8 @@ func TestDelayedExecutesAfterDelay(t *testing.T) {
 
 		err := (Delayed{Delay: time.Minute}).run(
 			t.Context(),
+			"delayed",
+			&recordingLogger{},
 			func(context.Context) error {
 				calledAt = time.Now()
 				return nil
@@ -39,6 +41,8 @@ func TestDelayedCancellationPreventsExecution(t *testing.T) {
 		go func() {
 			done <- (Delayed{Delay: time.Minute}).run(
 				ctx,
+				"delayed",
+				&recordingLogger{},
 				func(context.Context) error {
 					called = true
 					return nil
