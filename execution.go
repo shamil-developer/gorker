@@ -14,7 +14,7 @@ func executeWithPolicy(
 ) error {
 	config.runCounter++
 	run := config.runCounter
-	maxAttempts := config.retry.attempts()
+	maxAttempts := config.retry.MaxAttempts
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		if err := ctx.Err(); err != nil {
@@ -48,7 +48,7 @@ func executeWithPolicy(
 				"run", run,
 				"attempt", attempt,
 				"duration", attemptDuration,
-				"reason", contextTerminationReason(parentErr),
+				"reason", cancellationReason(parentErr),
 				"error", parentErr,
 			)
 			return parentErr
@@ -60,7 +60,7 @@ func executeWithPolicy(
 				"run", run,
 				"attempt", attempt,
 				"duration", attemptDuration,
-				"reason", contextTerminationReason(err),
+				"reason", cancellationReason(err),
 				"error", err,
 			)
 			return err
@@ -132,7 +132,7 @@ func executeWithPolicy(
 				"worker", name,
 				"run", run,
 				"after_attempt", attempt,
-				"reason", contextTerminationReason(err),
+				"reason", cancellationReason(err),
 				"error", err,
 			)
 			return err

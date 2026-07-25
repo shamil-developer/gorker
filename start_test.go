@@ -12,7 +12,7 @@ func TestStartReturnsBeforeWorkerCompletes(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		started := make(chan struct{})
 		release := make(chan struct{})
-		result := Start(
+		result, err := Start(
 			t.Context(),
 			"async",
 			workerFunc(func(context.Context) error {
@@ -23,6 +23,9 @@ func TestStartReturnsBeforeWorkerCompletes(t *testing.T) {
 			Once{},
 			Config{Logger: &recordingLogger{}},
 		)
+		if err != nil {
+			t.Fatalf("Start() validation error = %v", err)
+		}
 
 		<-started
 		select {
@@ -41,13 +44,16 @@ func TestStartReturnsBeforeWorkerCompletes(t *testing.T) {
 func TestStartReturnsWorkerErrorOnce(t *testing.T) {
 	wantErr := errors.New("worker failed")
 	logger := &recordingLogger{}
-	result := Start(
+	result, err := Start(
 		context.Background(),
 		"failure",
 		workerFunc(func(context.Context) error { return wantErr }),
 		Once{},
 		Config{Logger: logger},
 	)
+	if err != nil {
+		t.Fatalf("Start() validation error = %v", err)
+	}
 
 	if err, ok := <-result; !ok || !errors.Is(err, wantErr) {
 		t.Fatalf("first receive = (%v, %v), want worker error", err, ok)
@@ -76,7 +82,7 @@ func TestStartRequiresLogger(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			calls := 0
-			result := Start(
+			result, err := Start(
 				context.Background(),
 				"required_logger",
 				workerFunc(func(context.Context) error {
@@ -87,8 +93,11 @@ func TestStartRequiresLogger(t *testing.T) {
 				Config{Logger: test.logger},
 			)
 
-			if err := <-result; !errors.Is(err, ErrNilLogger) {
+			if !errors.Is(err, ErrNilLogger) {
 				t.Fatalf("Start() error = %v, want ErrNilLogger", err)
+			}
+			if result != nil {
+				t.Fatal("Start() result must be nil after validation failure")
 			}
 			if calls != 0 {
 				t.Fatalf("worker calls = %d, want 0", calls)
@@ -97,11 +106,11 @@ func TestStartRequiresLogger(t *testing.T) {
 	}
 }
 
-func TestStartValidatesModeBeforeStarting(t *testing.T) {
+func TestStartReturnsModeValidationError(t *testing.T) {
 	logger := &recordingLogger{}
 	wantErr := errors.New("invalid mode")
 	runCalls := 0
-	result := Start(
+	result, err := Start(
 		context.Background(),
 		"invalid_mode",
 		workerFunc(func(context.Context) error {
@@ -118,25 +127,23 @@ func TestStartValidatesModeBeforeStarting(t *testing.T) {
 		Config{Logger: logger},
 	)
 
-	if err := <-result; !errors.Is(err, wantErr) {
+	if !errors.Is(err, wantErr) {
 		t.Fatalf("Start() error = %v, want validation error", err)
+	}
+	if result != nil {
+		t.Fatal("Start() result must be nil after validation failure")
 	}
 	if runCalls != 0 {
 		t.Fatalf("Mode.run() calls = %d, want 0", runCalls)
 	}
-
-	entries := logger.snapshot()
-	if len(entries) != 1 {
-		t.Fatalf("log entries = %#v, want one rejection entry", entries)
-	}
-	if entries[0].message != "worker start rejected" {
-		t.Fatalf("message = %q, want worker start rejected", entries[0].message)
+	if entries := logger.snapshot(); len(entries) != 0 {
+		t.Fatalf("validation logs = %#v, want none", entries)
 	}
 }
 
 func TestStartLogsStructuredWorkerLifecycle(t *testing.T) {
 	logger := &recordingLogger{}
-	result := Start(
+	result, err := Start(
 		context.Background(),
 		"lifecycle",
 		workerFunc(func(context.Context) error { return nil }),
@@ -146,6 +153,9 @@ func TestStartLogsStructuredWorkerLifecycle(t *testing.T) {
 			Logger:  logger,
 		},
 	)
+	if err != nil {
+		t.Fatalf("Start() validation error = %v", err)
+	}
 
 	if err := <-result; err != nil {
 		t.Fatalf("Start() error = %v", err)
@@ -202,7 +212,7 @@ func TestStartLogsStructuredWorkerLifecycle(t *testing.T) {
 func TestStartLogsModeFailure(t *testing.T) {
 	logger := &recordingLogger{}
 	wantErr := errors.New("mode failed")
-	result := Start(
+	result, err := Start(
 		context.Background(),
 		"mode_failure",
 		workerFunc(func(context.Context) error { return nil }),
@@ -211,6 +221,9 @@ func TestStartLogsModeFailure(t *testing.T) {
 		}),
 		Config{Logger: logger},
 	)
+	if err != nil {
+		t.Fatalf("Start() validation error = %v", err)
+	}
 
 	if err := <-result; !errors.Is(err, wantErr) {
 		t.Fatalf("Start() error = %v, want mode error", err)
@@ -244,7 +257,7 @@ func TestStartLogsParentDeadlineAsStopReason(t *testing.T) {
 	)
 	defer cancel()
 
-	result := Start(
+	result, err := Start(
 		ctx,
 		"deadline",
 		workerFunc(func(context.Context) error {
@@ -254,6 +267,9 @@ func TestStartLogsParentDeadlineAsStopReason(t *testing.T) {
 		Once{},
 		Config{Logger: logger},
 	)
+	if err != nil {
+		t.Fatalf("Start() validation error = %v", err)
+	}
 
 	if err := <-result; !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Start() error = %v, want DeadlineExceeded", err)
@@ -271,7 +287,7 @@ func TestStartLogsParentDeadlineAsStopReason(t *testing.T) {
 
 func TestStartOnceWorkerPanicReturnsError(t *testing.T) {
 	calls := 0
-	result := Start(
+	result, err := Start(
 		context.Background(),
 		"once_panic",
 		workerFunc(func(context.Context) error {
@@ -281,6 +297,9 @@ func TestStartOnceWorkerPanicReturnsError(t *testing.T) {
 		Once{},
 		Config{Logger: &recordingLogger{}},
 	)
+	if err != nil {
+		t.Fatalf("Start() validation error = %v", err)
+	}
 
 	var panicErr *PanicError
 	if err := <-result; !errors.As(err, &panicErr) {
@@ -297,7 +316,7 @@ func TestStartRecurringWorkerContinuesAfterPanic(t *testing.T) {
 		logger := &recordingLogger{}
 		calls := 0
 
-		result := Start(
+		result, err := Start(
 			ctx,
 			"panic_recovery",
 			workerFunc(func(context.Context) error {
@@ -314,6 +333,9 @@ func TestStartRecurringWorkerContinuesAfterPanic(t *testing.T) {
 			},
 			Config{Logger: logger},
 		)
+		if err != nil {
+			t.Fatalf("Start() validation error = %v", err)
+		}
 
 		if err := <-result; !errors.Is(err, context.Canceled) {
 			t.Fatalf("Start() error = %v, want Canceled", err)
@@ -343,7 +365,7 @@ func TestStartRecurringWorkerContinuesAfterPanic(t *testing.T) {
 
 func TestStartTreatsModeCancellationAsNormalLifecycle(t *testing.T) {
 	logger := &recordingLogger{}
-	result := Start(
+	result, err := Start(
 		context.Background(),
 		"canceled_mode",
 		workerFunc(func(context.Context) error { return nil }),
@@ -352,6 +374,9 @@ func TestStartTreatsModeCancellationAsNormalLifecycle(t *testing.T) {
 		}),
 		Config{Logger: logger},
 	)
+	if err != nil {
+		t.Fatalf("Start() validation error = %v", err)
+	}
 
 	if err := <-result; !errors.Is(err, context.Canceled) {
 		t.Fatalf("Start() error = %v, want Canceled", err)
@@ -479,7 +504,7 @@ func TestStartValidation(t *testing.T) {
 			mode:   validMode,
 			config: Config{
 				Retry: Retry{
-					MaxAttempts: 1,
+					MaxAttempts: -1,
 				},
 				Logger: &recordingLogger{},
 			},
@@ -502,10 +527,18 @@ func TestStartValidation(t *testing.T) {
 			case "name with non ASCII letters":
 				workerName = "воркер"
 			}
-			result := Start(test.ctx, workerName, test.worker, test.mode, test.config)
-			err := <-result
+			result, err := Start(
+				test.ctx,
+				workerName,
+				test.worker,
+				test.mode,
+				test.config,
+			)
 			if !errors.Is(err, test.target) {
 				t.Fatalf("Start() error = %v, want %v", err, test.target)
+			}
+			if result != nil {
+				t.Fatal("Start() result must be nil after validation failure")
 			}
 		})
 	}

@@ -54,9 +54,24 @@ func TestRetryValidation(t *testing.T) {
 			name: "zero value disables retry",
 		},
 		{
-			name: "requires two attempts",
+			name: "one attempt without retry settings",
 			retry: Retry{
 				MaxAttempts: 1,
+			},
+		},
+		{
+			name: "rejects negative attempts",
+			retry: Retry{
+				MaxAttempts: -1,
+			},
+			target: ErrInvalidRetryAttempts,
+		},
+		{
+			name: "retry settings require two attempts",
+			retry: Retry{
+				MaxAttempts:  1,
+				InitialDelay: time.Second,
+				MaxDelay:     time.Second,
 			},
 			target: ErrInvalidRetryAttempts,
 		},
@@ -149,19 +164,5 @@ func TestRetryReturnsZeroForInvalidAttempt(t *testing.T) {
 	}
 	if got := retry.nextDelay(0); got != 0 {
 		t.Fatalf("nextDelay(0) = %v, want 0", got)
-	}
-}
-
-func TestRetryAttempts(t *testing.T) {
-	if got := (Retry{}).attempts(); got != 1 {
-		t.Fatalf("zero Retry attempts = %d, want 1", got)
-	}
-	retry := Retry{
-		MaxAttempts:  4,
-		InitialDelay: time.Second,
-		MaxDelay:     time.Second,
-	}
-	if got := retry.attempts(); got != 4 {
-		t.Fatalf("configured Retry attempts = %d, want 4", got)
 	}
 }

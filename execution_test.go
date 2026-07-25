@@ -406,6 +406,9 @@ func TestExecutionIncrementsRunNumber(t *testing.T) {
 }
 
 func testExecutionConfig(config Config) *executionConfig {
+	if config.Retry.MaxAttempts == 0 {
+		config.Retry.MaxAttempts = 1
+	}
 	return &executionConfig{
 		timeout: config.Timeout,
 		retry:   config.Retry,

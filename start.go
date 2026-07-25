@@ -12,34 +12,25 @@ type Result <-chan error
 
 // Start starts a worker in a new goroutine and immediately returns its result.
 //
-// On success the channel is closed without a value. On failure exactly one error
-// is sent before the channel is closed.
+// Validation errors are returned synchronously and no goroutine is started.
+// On success the channel is closed without a value. If a running worker fails,
+// exactly one error is sent before the channel is closed.
 func Start(
 	ctx context.Context,
 	name string,
 	implementation Worker,
 	mode Mode,
 	config Config,
-) Result {
-	result := make(chan error, 1)
-	if isNil(config.Logger) {
-		result <- ErrNilLogger
-		close(result)
-		return result
+) (Result, error) {
+	if config.Retry.MaxAttempts == 0 {
+		config.Retry.MaxAttempts = 1
 	}
-
 	if err := validateStart(ctx, name, implementation, mode, config); err != nil {
-		config.Logger.Error(
-			"worker start rejected",
-			"worker", name,
-			"error", err,
-		)
-		result <- err
-		close(result)
-		return result
+		return nil, err
 	}
 
-	preparedConfig := executionConfig{
+	result := make(chan error, 1)
+	execution := executionConfig{
 		timeout: config.Timeout,
 		retry:   config.Retry,
 		logger:  config.Logger,
@@ -48,25 +39,25 @@ func Start(
 	go func() {
 		defer close(result)
 		startedAt := time.Now()
-		preparedConfig.logger.Info(
+		execution.logger.Info(
 			"worker started",
 			"worker", name,
-			"timeout", preparedConfig.timeout,
-			"max_attempts", preparedConfig.retry.attempts(),
+			"timeout", execution.timeout,
+			"max_attempts", execution.retry.MaxAttempts,
 		)
 
-		execute := func(executionContext context.Context) error {
+		executeRun := func(executionContext context.Context) error {
 			return executeWithPolicy(
 				executionContext,
 				name,
 				implementation,
-				&preparedConfig,
+				&execution,
 			)
 		}
 
-		err := mode.run(ctx, name, preparedConfig.logger, execute)
+		err := mode.run(ctx, name, execution.logger, executeRun)
 		if err == nil {
-			preparedConfig.logger.Info(
+			execution.logger.Info(
 				"worker completed",
 				"worker", name,
 				"duration", time.Since(startedAt),
@@ -75,39 +66,36 @@ func Start(
 		}
 
 		duration := time.Since(startedAt)
-		switch {
-		case isContextTermination(ctx, err):
-			preparedConfig.logger.Info(
+		var panicErr *PanicError
+		if errors.Is(err, context.Canceled) || (ctx.Err() != nil && errors.Is(err, ctx.Err())) {
+			execution.logger.Info(
 				"worker stopped",
 				"worker", name,
 				"duration", duration,
-				"reason", contextTerminationReason(err),
+				"reason", cancellationReason(err),
 				"error", err,
 			)
-		default:
-			var panicErr *PanicError
-			if errors.As(err, &panicErr) {
-				preparedConfig.logger.Error(
-					"worker panicked",
-					"worker", name,
-					"duration", duration,
-					"error", err,
-					"panic_value", panicErr.Value,
-					"stack", string(panicErr.Stack),
-				)
-			} else {
-				preparedConfig.logger.Error(
-					"worker failed",
-					"worker", name,
-					"duration", duration,
-					"error", err,
-				)
-			}
+		} else if errors.As(err, &panicErr) {
+			execution.logger.Error(
+				"worker panicked",
+				"worker", name,
+				"duration", duration,
+				"error", err,
+				"panic_value", panicErr.Value,
+				"stack", string(panicErr.Stack),
+			)
+		} else {
+			execution.logger.Error(
+				"worker failed",
+				"worker", name,
+				"duration", duration,
+				"error", err,
+			)
 		}
 		result <- err
 	}()
 
-	return result
+	return result, nil
 }
 
 func validateStart(
@@ -132,6 +120,9 @@ func validateStart(
 	if isNil(mode) {
 		return ErrNilMode
 	}
+	if isNil(config.Logger) {
+		return ErrNilLogger
+	}
 	if config.Timeout < 0 {
 		return ErrInvalidTimeout
 	}
@@ -139,13 +130,6 @@ func validateStart(
 		return err
 	}
 	return mode.validate()
-}
-
-func isContextTermination(ctx context.Context, err error) bool {
-	if errors.Is(err, context.Canceled) {
-		return true
-	}
-	return ctx.Err() != nil && errors.Is(err, ctx.Err())
 }
 
 func isValidWorkerName(name string) bool {
@@ -159,11 +143,4 @@ func isValidWorkerName(name string) bool {
 		return false
 	}
 	return true
-}
-
-func contextTerminationReason(err error) string {
-	if errors.Is(err, context.DeadlineExceeded) {
-		return "deadline_exceeded"
-	}
-	return "context_canceled"
 }

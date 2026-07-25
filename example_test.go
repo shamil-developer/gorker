@@ -28,7 +28,7 @@ func exampleLogger() *slog.Logger {
 }
 
 func ExampleStart() {
-	result := gorker.Start(
+	result, err := gorker.Start(
 		context.Background(),
 		"cleanup",
 		cleanupWorker{},
@@ -43,6 +43,10 @@ func ExampleStart() {
 			Logger: exampleLogger(),
 		},
 	)
+	if err != nil {
+		fmt.Println("start:", err)
+		return
+	}
 
 	if err := <-result; err != nil {
 		fmt.Println("error:", err)
@@ -54,8 +58,9 @@ func ExampleStart() {
 
 func ExamplePeriodic() {
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	result := gorker.Start(
+	result, err := gorker.Start(
 		ctx,
 		"heartbeat",
 		silentWorker{},
@@ -67,6 +72,10 @@ func ExamplePeriodic() {
 			Logger: exampleLogger(),
 		},
 	)
+	if err != nil {
+		fmt.Println("start:", err)
+		return
+	}
 
 	// The application continues running. During graceful shutdown:
 	cancel()
@@ -75,8 +84,9 @@ func ExamplePeriodic() {
 
 func ExampleFixedDelay() {
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	result := gorker.Start(
+	result, err := gorker.Start(
 		ctx,
 		"poller",
 		silentWorker{},
@@ -88,13 +98,17 @@ func ExampleFixedDelay() {
 			Logger: exampleLogger(),
 		},
 	)
+	if err != nil {
+		fmt.Println("start:", err)
+		return
+	}
 
 	cancel()
 	_ = gorker.Wait(context.Background(), result)
 }
 
 func ExampleDelayed() {
-	result := gorker.Start(
+	result, err := gorker.Start(
 		context.Background(),
 		"delayed_cleanup",
 		silentWorker{},
@@ -105,12 +119,16 @@ func ExampleDelayed() {
 			Logger: exampleLogger(),
 		},
 	)
+	if err != nil {
+		fmt.Println("start:", err)
+		return
+	}
 
 	_ = result
 }
 
 func ExampleScheduled() {
-	result := gorker.Start(
+	result, err := gorker.Start(
 		context.Background(),
 		"scheduled_report",
 		silentWorker{},
@@ -121,14 +139,19 @@ func ExampleScheduled() {
 			Logger: exampleLogger(),
 		},
 	)
+	if err != nil {
+		fmt.Println("start:", err)
+		return
+	}
 
 	_ = result
 }
 
 func ExampleCron() {
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	result := gorker.Start(
+	result, err := gorker.Start(
 		ctx,
 		"nightly_cleanup",
 		silentWorker{},
@@ -139,26 +162,38 @@ func ExampleCron() {
 			Logger: exampleLogger(),
 		},
 	)
+	if err != nil {
+		fmt.Println("start:", err)
+		return
+	}
 
 	cancel()
 	_ = gorker.Wait(context.Background(), result)
 }
 
 func ExampleWait() {
-	first := gorker.Start(
+	first, err := gorker.Start(
 		context.Background(),
 		"first",
 		silentWorker{},
 		gorker.Once{},
 		gorker.Config{Logger: exampleLogger()},
 	)
-	second := gorker.Start(
+	if err != nil {
+		fmt.Println("start:", err)
+		return
+	}
+	second, err := gorker.Start(
 		context.Background(),
 		"second",
 		silentWorker{},
 		gorker.Once{},
 		gorker.Config{Logger: exampleLogger()},
 	)
+	if err != nil {
+		fmt.Println("start:", err)
+		return
+	}
 
 	if err := gorker.Wait(context.Background(), first, second); err != nil {
 		fmt.Println("error:", err)
