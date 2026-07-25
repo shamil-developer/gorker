@@ -102,14 +102,14 @@ failure sends one error and then closes the channel.
 
 ## Modes
 
-| Mode | Behavior |
-| --- | --- |
-| `Once` | Runs once immediately |
-| `Delayed` | Runs once after `Delay` |
-| `Scheduled` | Runs once at `At`; a past time runs immediately |
-| `Periodic` | Runs on a fixed `Interval` |
+| Mode         | Behavior                                           |
+| ------------ | -------------------------------------------------- |
+| `Once`       | Runs once immediately                              |
+| `Delayed`    | Runs once after `Delay`                            |
+| `Scheduled`  | Runs once at `At`; a past time runs immediately    |
+| `Periodic`   | Runs on a fixed `Interval`                         |
 | `FixedDelay` | Waits `Delay` after completion before the next run |
-| `Cron` | Runs from a standard five-field cron expression |
+| `Cron`       | Runs from a standard five-field cron expression    |
 
 Built-in modes never execute the same worker concurrently. `Periodic` does not
 accumulate missed ticks, `FixedDelay` starts its delay after execution
