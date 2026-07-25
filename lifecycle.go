@@ -7,13 +7,8 @@ import (
 	"time"
 )
 
-// Result reports the final asynchronous worker error.
-// On success it is closed without a value.
 type Result <-chan error
 
-// Mode controls when a worker is executed.
-//
-// Only the built-in modes in this package implement Mode.
 type Mode interface {
 	validate() error
 	run(
@@ -24,11 +19,6 @@ type Mode interface {
 	) error
 }
 
-// Start starts a worker in a new goroutine and immediately returns its result.
-//
-// Validation errors are returned synchronously and no goroutine is started.
-// On success the channel is closed without a value. If a running worker fails,
-// exactly one error is sent before the channel is closed.
 func Start(
 	ctx context.Context,
 	name string,
@@ -112,8 +102,6 @@ func Start(
 	return result, nil
 }
 
-// Wait waits for all results or until ctx expires.
-// Context cancellation reported by workers is treated as a normal shutdown.
 func Wait(ctx context.Context, results ...Result) error {
 	if ctx == nil {
 		return errNilContext
@@ -187,7 +175,6 @@ func isValidWorkerName(name string) bool {
 	return true
 }
 
-// isNilInterface detects both a nil interface and an interface holding a typed nil.
 func isNilInterface(value any) bool {
 	if value == nil {
 		return true

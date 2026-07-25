@@ -624,8 +624,8 @@ func TestWaitStopsAtContextDeadline(t *testing.T) {
 }
 
 func TestWaitRejectsNilContext(t *testing.T) {
-	//lint:ignore SA1012 nil context is intentional to test public validation
-	if err := Wait(nil); !errors.Is(err, errNilContext) {
+	var ctx context.Context
+	if err := Wait(ctx); !errors.Is(err, errNilContext) {
 		t.Fatalf("Wait() error = %v, want errNilContext", err)
 	}
 }

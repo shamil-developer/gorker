@@ -22,7 +22,6 @@ var (
 	errInvalidRetryDelay     = errors.New("worker: retry delay is invalid")
 )
 
-// PanicError reports a panic recovered from a worker execution.
 type PanicError struct {
 	value any
 	stack []byte

@@ -6,7 +6,6 @@ import (
 	"time"
 )
 
-// Periodic executes a worker on every interval until context cancellation.
 type Periodic struct {
 	Interval  time.Duration
 	Immediate bool

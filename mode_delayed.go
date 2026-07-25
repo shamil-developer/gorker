@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// Delayed executes a worker once after Delay.
 type Delayed struct {
 	Delay time.Duration
 }

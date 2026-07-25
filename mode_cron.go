@@ -10,11 +10,6 @@ import (
 	robfigcron "github.com/robfig/cron/v3"
 )
 
-// Cron executes a worker according to a standard five-field cron expression.
-//
-// Executions never overlap. Schedule occurrences missed while a worker is
-// running are skipped; after completion, only the next future time is used.
-// Expressions use time.Local unless they include a TZ or CRON_TZ prefix.
 type Cron struct {
 	Expression string
 }

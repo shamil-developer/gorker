@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-// FixedDelay waits Delay after an execution finishes before starting the next.
-// Executions never overlap and missed runs never accumulate.
 type FixedDelay struct {
 	Delay     time.Duration
 	Immediate bool

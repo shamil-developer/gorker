@@ -5,7 +5,6 @@ import (
 	"errors"
 )
 
-// Logger receives structured worker logs.
 type Logger interface {
 	Debug(message string, args ...any)
 	Info(message string, args ...any)

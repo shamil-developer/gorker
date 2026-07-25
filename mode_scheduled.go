@@ -5,8 +5,6 @@ import (
 	"time"
 )
 
-// Scheduled executes a worker once at At.
-// A time in the past executes immediately.
 type Scheduled struct {
 	At time.Time
 }

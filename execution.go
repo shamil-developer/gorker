@@ -6,21 +6,15 @@ import (
 	"time"
 )
 
-// Worker contains only the business operation. Start controls its lifecycle.
 type Worker interface {
 	Execute(ctx context.Context) error
 }
 
-// Config controls how each worker execution is handled.
 type Config struct {
-	// Timeout limits each individual attempt. Zero disables it.
 	Timeout time.Duration
 
-	// Retry configures repeated attempts. Its zero value means one attempt.
 	Retry Retry
 
-	// Logger receives structured worker logs.
-	// It is required.
 	Logger Logger
 }
 

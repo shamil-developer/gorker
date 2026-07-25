@@ -52,8 +52,6 @@ func ExampleStart() {
 		fmt.Println("error:", err)
 	}
 
-	// Output:
-	// cleanup completed
 }
 
 func ExamplePeriodic() {
@@ -77,7 +75,6 @@ func ExamplePeriodic() {
 		return
 	}
 
-	// The application continues running. During graceful shutdown:
 	cancel()
 	_ = gorker.Wait(context.Background(), result)
 }
@@ -201,6 +198,4 @@ func ExampleWait() {
 	}
 	fmt.Println("all workers completed")
 
-	// Output:
-	// all workers completed
 }

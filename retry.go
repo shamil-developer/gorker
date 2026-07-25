@@ -5,10 +5,6 @@ import (
 	"time"
 )
 
-// Retry configures repeated attempts with an exponentially increasing delay.
-//
-// A zero Retry disables repeated attempts. Setting InitialDelay and MaxDelay
-// to the same value produces a constant delay.
 type Retry struct {
 	MaxAttempts  int
 	InitialDelay time.Duration
