@@ -5,10 +5,21 @@ import (
 	"time"
 )
 
+// Retry configures retries with an exponentially increasing delay.
+//
+// The zero value performs one attempt without retries. Setting InitialDelay and
+// MaxDelay to the same value produces a constant delay. Recovered panics are
+// not retried.
 type Retry struct {
-	MaxAttempts  int
+	// MaxAttempts is the total number of attempts, including the first.
+	// Zero and one both mean a single attempt.
+	MaxAttempts int
+
+	// InitialDelay is the delay before the second attempt.
 	InitialDelay time.Duration
-	MaxDelay     time.Duration
+
+	// MaxDelay caps the delay between attempts.
+	MaxDelay time.Duration
 }
 
 func (r Retry) nextDelay(attempt int) time.Duration {

@@ -17,6 +17,16 @@ func (cleanupWorker) Execute(context.Context) error {
 	return nil
 }
 
+type heartbeatWorker struct {
+	cancel context.CancelFunc
+}
+
+func (w heartbeatWorker) Execute(context.Context) error {
+	fmt.Println("heartbeat")
+	w.cancel()
+	return nil
+}
+
 type silentWorker struct{}
 
 func (silentWorker) Execute(context.Context) error {
@@ -49,9 +59,11 @@ func ExampleStart() {
 	}
 
 	if err := <-result; err != nil {
-		fmt.Println("error:", err)
+		fmt.Println("run:", err)
 	}
 
+	// Output:
+	// cleanup completed
 }
 
 func ExamplePeriodic() {
@@ -61,111 +73,24 @@ func ExamplePeriodic() {
 	result, err := gorker.Start(
 		ctx,
 		"heartbeat",
-		silentWorker{},
+		heartbeatWorker{cancel: cancel},
 		gorker.Periodic{
 			Interval:  time.Minute,
 			Immediate: true,
 		},
-		gorker.Config{
-			Logger: exampleLogger(),
-		},
+		gorker.Config{Logger: exampleLogger()},
 	)
 	if err != nil {
 		fmt.Println("start:", err)
 		return
 	}
 
-	cancel()
-	_ = gorker.Wait(context.Background(), result)
-}
-
-func ExampleFixedDelay() {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	result, err := gorker.Start(
-		ctx,
-		"poller",
-		silentWorker{},
-		gorker.FixedDelay{
-			Delay:     time.Minute,
-			Immediate: true,
-		},
-		gorker.Config{
-			Logger: exampleLogger(),
-		},
-	)
-	if err != nil {
-		fmt.Println("start:", err)
-		return
+	if err := gorker.Wait(context.Background(), result); err != nil {
+		fmt.Println("wait:", err)
 	}
 
-	cancel()
-	_ = gorker.Wait(context.Background(), result)
-}
-
-func ExampleDelayed() {
-	result, err := gorker.Start(
-		context.Background(),
-		"delayed_cleanup",
-		silentWorker{},
-		gorker.Delayed{
-			Delay: time.Minute,
-		},
-		gorker.Config{
-			Logger: exampleLogger(),
-		},
-	)
-	if err != nil {
-		fmt.Println("start:", err)
-		return
-	}
-
-	_ = result
-}
-
-func ExampleScheduled() {
-	result, err := gorker.Start(
-		context.Background(),
-		"scheduled_report",
-		silentWorker{},
-		gorker.Scheduled{
-			At: time.Now().Add(time.Hour),
-		},
-		gorker.Config{
-			Logger: exampleLogger(),
-		},
-	)
-	if err != nil {
-		fmt.Println("start:", err)
-		return
-	}
-
-	_ = result
-}
-
-func ExampleCron() {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	result, err := gorker.Start(
-		ctx,
-		"nightly_cleanup",
-		silentWorker{},
-		gorker.Cron{
-			Expression: "CRON_TZ=Europe/Moscow 0 3 * * *",
-		},
-		gorker.Config{
-			Logger: exampleLogger(),
-		},
-	)
-	if err != nil {
-		fmt.Println("start:", err)
-		return
-	}
-
-	cancel()
-	_ = gorker.Wait(context.Background(), result)
+	// Output:
+	// heartbeat
 }
 
 func ExampleWait() {
@@ -177,9 +102,10 @@ func ExampleWait() {
 		gorker.Config{Logger: exampleLogger()},
 	)
 	if err != nil {
-		fmt.Println("start:", err)
+		fmt.Println("start first:", err)
 		return
 	}
+
 	second, err := gorker.Start(
 		context.Background(),
 		"second",
@@ -188,14 +114,16 @@ func ExampleWait() {
 		gorker.Config{Logger: exampleLogger()},
 	)
 	if err != nil {
-		fmt.Println("start:", err)
+		fmt.Println("start second:", err)
 		return
 	}
 
 	if err := gorker.Wait(context.Background(), first, second); err != nil {
-		fmt.Println("error:", err)
+		fmt.Println("wait:", err)
 		return
 	}
 	fmt.Println("all workers completed")
 
+	// Output:
+	// all workers completed
 }

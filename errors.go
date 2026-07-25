@@ -22,6 +22,10 @@ var (
 	errInvalidRetryDelay     = errors.New("worker: retry delay is invalid")
 )
 
+// PanicError reports a panic recovered from a Worker execution.
+//
+// A caller can identify a recovered panic with errors.As. The panic value and
+// stack trace are written to the configured Logger.
 type PanicError struct {
 	value any
 	stack []byte
@@ -34,6 +38,7 @@ func newPanicError(value any) *PanicError {
 	}
 }
 
+// Error returns a description of the recovered panic.
 func (e *PanicError) Error() string {
 	return fmt.Sprint("worker panicked: ", e.value)
 }

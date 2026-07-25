@@ -6,8 +6,15 @@ import (
 	"time"
 )
 
+// Periodic executes a worker on a fixed interval until its context is canceled.
+//
+// Executions never overlap. Ticks missed while an execution is running are not
+// accumulated as a backlog.
 type Periodic struct {
-	Interval  time.Duration
+	// Interval is the time between scheduled ticks and must be positive.
+	Interval time.Duration
+
+	// Immediate runs the worker once before waiting for the first interval.
 	Immediate bool
 }
 

@@ -6,15 +6,26 @@ import (
 	"time"
 )
 
+// Worker defines the business operation performed by a background worker.
 type Worker interface {
+	// Execute performs one execution attempt.
+	//
+	// Execute should stop promptly when ctx is canceled and return ctx.Err().
 	Execute(ctx context.Context) error
 }
 
+// Config controls how each worker execution is handled.
 type Config struct {
+	// Timeout limits each execution attempt. Zero disables the timeout.
 	Timeout time.Duration
 
+	// Retry configures additional attempts after returned errors and timeouts.
+	// Its zero value performs one attempt without retries. Recovered panics are
+	// not retried.
 	Retry Retry
 
+	// Logger receives structured lifecycle events.
+	// Logger is required and must be safe for concurrent use.
 	Logger Logger
 }
 

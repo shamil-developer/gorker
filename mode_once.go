@@ -2,6 +2,7 @@ package gorker
 
 import "context"
 
+// Once executes a worker once immediately.
 type Once struct{}
 
 func (Once) validate() error {

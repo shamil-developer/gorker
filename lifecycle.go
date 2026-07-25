@@ -7,8 +7,15 @@ import (
 	"time"
 )
 
+// Result reports the final outcome of an asynchronously running worker.
+//
+// On success, Result is closed without a value. On failure, it receives one
+// error and is then closed. A Result must have only one consumer.
 type Result <-chan error
 
+// Mode controls when a worker is executed.
+//
+// Only the built-in modes provided by this package implement Mode.
 type Mode interface {
 	validate() error
 	run(
@@ -19,6 +26,14 @@ type Mode interface {
 	) error
 }
 
+// Start validates and starts a worker in a new goroutine.
+//
+// Validation errors are returned synchronously, and no goroutine is started.
+// A valid name contains only lowercase ASCII letters, digits, and underscores.
+//
+// On success, Start returns a Result immediately. Runtime failures are reported
+// through that Result. Canceling ctx stops future executions and asks the
+// current execution to stop cooperatively.
 func Start(
 	ctx context.Context,
 	name string,
@@ -102,6 +117,11 @@ func Start(
 	return result, nil
 }
 
+// Wait waits for every Result or until ctx is canceled.
+//
+// Worker errors are combined with errors.Join. A worker reporting
+// context.Canceled is treated as a normal shutdown. Nil results are ignored.
+// Each Result passed to Wait must not be read elsewhere.
 func Wait(ctx context.Context, results ...Result) error {
 	if ctx == nil {
 		return errNilContext

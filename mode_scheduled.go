@@ -5,7 +5,11 @@ import (
 	"time"
 )
 
+// Scheduled executes a worker once at a specific time.
+//
+// A time in the past causes immediate execution.
 type Scheduled struct {
+	// At is the execution time and must not be the zero time.
 	At time.Time
 }
 

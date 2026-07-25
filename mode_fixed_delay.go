@@ -6,8 +6,15 @@ import (
 	"time"
 )
 
+// FixedDelay executes a worker repeatedly with a delay after each completion.
+//
+// Executions never overlap, and missed executions cannot accumulate.
 type FixedDelay struct {
-	Delay     time.Duration
+	// Delay is measured from one completed execution to the next start and must
+	// be positive.
+	Delay time.Duration
+
+	// Immediate runs the worker once before waiting for the first delay.
 	Immediate bool
 }
 
