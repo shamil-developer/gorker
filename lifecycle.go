@@ -3,12 +3,26 @@ package gorker
 import (
 	"context"
 	"errors"
+	"reflect"
 	"time"
 )
 
 // Result reports the final asynchronous worker error.
 // On success it is closed without a value.
 type Result <-chan error
+
+// Mode controls when a worker is executed.
+//
+// Only the built-in modes in this package implement Mode.
+type Mode interface {
+	validate() error
+	run(
+		ctx context.Context,
+		name string,
+		logger Logger,
+		execute func(context.Context) error,
+	) error
+}
 
 // Start starts a worker in a new goroutine and immediately returns its result.
 //
@@ -98,6 +112,34 @@ func Start(
 	return result, nil
 }
 
+// Wait waits for all results or until ctx expires.
+// Context cancellation reported by workers is treated as a normal shutdown.
+func Wait(ctx context.Context, results ...Result) error {
+	if ctx == nil {
+		return ErrNilContext
+	}
+
+	var workerErrors []error
+	for _, result := range results {
+		if result == nil {
+			continue
+		}
+
+		select {
+		case err := <-result:
+			if err != nil && !errors.Is(err, context.Canceled) {
+				workerErrors = append(workerErrors, err)
+			}
+
+		case <-ctx.Done():
+			workerErrors = append(workerErrors, ctx.Err())
+			return errors.Join(workerErrors...)
+		}
+	}
+
+	return errors.Join(workerErrors...)
+}
+
 func validateStart(
 	ctx context.Context,
 	name string,
@@ -114,13 +156,13 @@ func validateStart(
 	if !isValidWorkerName(name) {
 		return ErrInvalidWorkerName
 	}
-	if isNil(implementation) {
+	if isNilInterface(implementation) {
 		return ErrNilWorker
 	}
-	if isNil(mode) {
+	if isNilInterface(mode) {
 		return ErrNilMode
 	}
-	if isNil(config.Logger) {
+	if isNilInterface(config.Logger) {
 		return ErrNilLogger
 	}
 	if config.Timeout < 0 {
@@ -143,4 +185,19 @@ func isValidWorkerName(name string) bool {
 		return false
 	}
 	return true
+}
+
+// isNilInterface detects both a nil interface and an interface holding a typed nil.
+func isNilInterface(value any) bool {
+	if value == nil {
+		return true
+	}
+
+	reflected := reflect.ValueOf(value)
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
 }
